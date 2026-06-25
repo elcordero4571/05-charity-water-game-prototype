@@ -49,6 +49,9 @@ let skillCheckStartTime = 0;
 let skillCheckDuration = 2000;
 let skillCheckSuccess = false;
 
+let particles = [];
+let particlesCreated = false;
+
 // ==================================================
 // 4. PLAYER
 // ==================================================
@@ -95,6 +98,8 @@ function loadLevel() {
   startTime = Date.now();
   skillCheckActive = false;
   skillCheckTargetObstacle = null;
+  particles = [];
+  particlesCreated = false;
 
   platforms = [
     { x: 0, y: 500, w: 960, h: 40 }
@@ -126,9 +131,13 @@ function loadLevel() {
     }
   });
 
-  const pipePlatformIndex = randomBetween(1, 3);
-  const pipePlatform = platforms[pipePlatformIndex];
-  const pipeX = randomBetween(pipePlatform.x + 10, pipePlatform.x + pipePlatform.w - 65);
+  const groundPlatform = platforms[0];
+  const pipeX = randomBetween(groundPlatform.x + 10, groundPlatform.x + groundPlatform.w - 65);
+
+  const pipeBounds = {
+    x: pipeX,
+    w: 55
+  };
 
   function randomPlatformX(platform) {
     const minX = platform.x + 10;
@@ -148,11 +157,11 @@ function loadLevel() {
 
       if (hasCollision) {
         const leftSpace = pipeBounds.x - 10 - 60;
-        const rightSpace = maxX - (pipeBounds.x + pipeBounds.w);
+        const rightSpace = maxX - (pipeBounds.x + pipeBounds.w + 10);
 
-        if (leftSpace > 0 && leftSpace > rightSpace) {
-          x = Math.max(minX, leftSpace);
-        } else if (rightSpace > 0) {
+        if (leftSpace >= 0 && leftSpace > rightSpace) {
+          x = Math.max(minX, pipeBounds.x - 60 - 10);
+        } else if (rightSpace >= 0) {
           x = Math.min(maxX, pipeBounds.x + pipeBounds.w + 10);
         }
       }
@@ -161,28 +170,23 @@ function loadLevel() {
     return x;
   }
 
-  const pipeBounds = {
-    x: pipeX - 10,
-    w: 75
-  };
-
   obstacles = [
     {
-      x: randomObstacleX(platforms[1], pipePlatformIndex === 1 ? pipeBounds : null),
+      x: randomObstacleX(platforms[1], null),
       y: platforms[1].y - 60,
       w: 60,
       h: 60,
       hp: 2
     },
     {
-      x: randomObstacleX(platforms[2], pipePlatformIndex === 2 ? pipeBounds : null),
+      x: randomObstacleX(platforms[2], null),
       y: platforms[2].y - 60,
       w: 60,
       h: 60,
       hp: 3
     },
     {
-      x: randomObstacleX(platforms[3], pipePlatformIndex === 3 ? pipeBounds : null),
+      x: randomObstacleX(platforms[3], null),
       y: platforms[3].y - 60,
       w: 60,
       h: 60,
@@ -222,7 +226,7 @@ function loadLevel() {
 
   pipe = {
     x: pipeX,
-    y: pipePlatform.y - 80,
+    y: groundPlatform.y - 85,
     w: 55,
     h: 80
   };
@@ -292,8 +296,17 @@ gameLoop();
 
 function update() {
   animateBackgroundWater();
+  updateParticles();
 
-  if (gameWon || gameOver || skillCheckActive) {
+  if (gameWon) {
+    if (!particlesCreated) {
+      createConfetti();
+      particlesCreated = true;
+    }
+    return;
+  }
+
+  if (gameOver || skillCheckActive) {
     return;
   }
 
@@ -313,6 +326,45 @@ function animateBackgroundWater() {
     if (drop.y > 500) {
       drop.y = 90;
     }
+  });
+}
+
+function createConfetti() {
+  for (let i = 0; i < 30; i++) {
+    particles.push({
+      x: Math.random() * WIDTH,
+      y: -10,
+      vx: (Math.random() - 0.5) * 8,
+      vy: Math.random() * 3 + 2,
+      size: Math.random() * 6 + 4,
+      color: [COLORS.yellow, COLORS.cleanWater, COLORS.peach, COLORS.white][Math.floor(Math.random() * 4)],
+      life: 1,
+      decay: Math.random() * 0.01 + 0.005
+    });
+  }
+}
+
+function updateParticles() {
+  particles.forEach(function(particle) {
+    particle.x += particle.vx;
+    particle.y += particle.vy;
+    particle.vy += 0.1;
+    particle.life -= particle.decay;
+  });
+
+  particles = particles.filter(function(particle) {
+    return particle.life > 0 && particle.y < HEIGHT;
+  });
+}
+
+function drawParticles() {
+  particles.forEach(function(particle) {
+    ctx.fillStyle = particle.color;
+    ctx.globalAlpha = particle.life;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   });
 }
 
@@ -524,6 +576,7 @@ function draw() {
 
   if (gameWon) {
     drawCenterMessage("Clean Water Restored!", "Press R to restart");
+    drawParticles();
   }
 
   if (gameOver) {
