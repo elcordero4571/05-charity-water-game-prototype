@@ -1,15 +1,42 @@
-/* Charity: water Brand Colors
+/* ==================================================
+   1. PAGE SETUP
+   ================================================== */
 
-Primary Colors:
-- Yellow:     #FFC907
-- Blue:       #2E9DF7
+body {
+  margin: 0;
+  background: #1C2B40;
+  color: #F5F2E0;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
 
-Secondary Colors:
-- Light Blue: #8BD1CB
-- Green:      #4FCB53
-- Orange:     #FF902A
-- Red:        #F5402C
-- Dark Green: #159A48
-- Pink:       #F16061
+/* ==================================================
+   2. TITLE TEXT
+   ================================================== */
 
-*/
+h1 {
+  margin: 14px 0 4px;
+  color: #FFC908;
+  letter-spacing: 1px;
+}
+
+/* ==================================================
+   3. INSTRUCTIONS
+   ================================================== */
+
+p {
+  margin: 5px 0 14px;
+}
+
+/* ==================================================
+   4. GAME CANVAS
+   ================================================== */
+
+canvas {
+  background: #F5F2E0;
+  border: 5px solid #FFC908;
+  display: block;
+  margin: 0 auto;
+  max-width: 95vw;
+  height: auto;
+}
