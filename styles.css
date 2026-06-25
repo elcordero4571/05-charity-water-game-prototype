@@ -2,12 +2,22 @@
    1. PAGE SETUP
    ================================================== */
 
+html,
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
   background: #1C2B40;
   color: #F5F2E0;
   font-family: Arial, sans-serif;
-  text-align: center;
+}
+
+body > h1,
+body > p {
+  display: none;
 }
 
 /* ==================================================
@@ -33,10 +43,12 @@ p {
    ================================================== */
 
 canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  box-sizing: border-box;
   background: #F5F2E0;
   border: 5px solid #FFC908;
-  display: block;
-  margin: 0 auto;
-  max-width: 95vw;
-  height: auto;
 }

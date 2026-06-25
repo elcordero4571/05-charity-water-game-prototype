@@ -43,6 +43,12 @@ let attackCooldown = 0;
 let invincibleTimer = 0;
 let startTime = Date.now();
 
+let skillCheckActive = false;
+let skillCheckTargetObstacle = null;
+let skillCheckStartTime = 0;
+let skillCheckDuration = 2000;
+let skillCheckSuccess = false;
+
 // ==================================================
 // 4. PLAYER
 // ==================================================
@@ -68,6 +74,10 @@ let germs;
 let pipe;
 let waterDrops;
 
+function randomBetween(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 function loadLevel() {
   player.x = 60;
   player.y = 420;
@@ -83,29 +93,136 @@ function loadLevel() {
   attackCooldown = 0;
   invincibleTimer = 0;
   startTime = Date.now();
+  skillCheckActive = false;
+  skillCheckTargetObstacle = null;
 
   platforms = [
-    { x: 0, y: 500, w: 960, h: 40 },
-    { x: 220, y: 420, w: 140, h: 25 },
-    { x: 450, y: 350, w: 140, h: 25 },
-    { x: 690, y: 280, w: 150, h: 25 }
+    { x: 0, y: 500, w: 960, h: 40 }
   ];
 
+  const platformSpecs = [
+    { gapMin: 50, gapMax: 110, yMin: 380, yMax: 440 },
+    { gapMin: 50, gapMax: 120, yMin: 300, yMax: 380 },
+    { gapMin: 50, gapMax: 130, yMin: 220, yMax: 330 }
+  ];
+
+  let previousPlatform = { x: 60, w: 40, y: 500 };
+
+  platformSpecs.forEach(function(spec, index) {
+    const width = randomBetween(120, 180);
+    const minX = previousPlatform.x + previousPlatform.w + spec.gapMin;
+    const maxX = Math.min(previousPlatform.x + previousPlatform.w + spec.gapMax, WIDTH - 160 - width);
+    const x = randomBetween(minX, Math.max(minX, maxX));
+    const y = randomBetween(spec.yMin, spec.yMax);
+
+    platforms.push({ x: x, y: y, w: width, h: 25 });
+    previousPlatform = platforms[platforms.length - 1];
+
+    if (index === platformSpecs.length - 1) {
+      const rightLimit = WIDTH - 200 - width;
+      if (previousPlatform.x < rightLimit) {
+        previousPlatform.x = randomBetween(previousPlatform.x, rightLimit);
+      }
+    }
+  });
+
+  const pipePlatformIndex = randomBetween(1, 3);
+  const pipePlatform = platforms[pipePlatformIndex];
+  const pipeX = randomBetween(pipePlatform.x + 10, pipePlatform.x + pipePlatform.w - 65);
+
+  function randomPlatformX(platform) {
+    const minX = platform.x + 10;
+    const maxX = platform.x + platform.w - 70;
+    return randomBetween(minX, maxX);
+  }
+
+  function randomObstacleX(platform, pipeBounds) {
+    const minX = platform.x + 10;
+    const maxX = platform.x + platform.w - 70;
+    let x = randomBetween(minX, maxX);
+
+    if (pipeBounds) {
+      const obstacleRight = x + 60;
+      const pipeRight = pipeBounds.x + pipeBounds.w;
+      const hasCollision = x < pipeRight && obstacleRight > pipeBounds.x;
+
+      if (hasCollision) {
+        const leftSpace = pipeBounds.x - 10 - 60;
+        const rightSpace = maxX - (pipeBounds.x + pipeBounds.w);
+
+        if (leftSpace > 0 && leftSpace > rightSpace) {
+          x = Math.max(minX, leftSpace);
+        } else if (rightSpace > 0) {
+          x = Math.min(maxX, pipeBounds.x + pipeBounds.w + 10);
+        }
+      }
+    }
+
+    return x;
+  }
+
+  const pipeBounds = {
+    x: pipeX - 10,
+    w: 75
+  };
+
   obstacles = [
-    { x: 300, y: 360, w: 60, h: 60, hp: 2 },
-    { x: 520, y: 290, w: 60, h: 60, hp: 3 },
-    { x: 760, y: 220, w: 60, h: 60, hp: 3 }
+    {
+      x: randomObstacleX(platforms[1], pipePlatformIndex === 1 ? pipeBounds : null),
+      y: platforms[1].y - 60,
+      w: 60,
+      h: 60,
+      hp: 2
+    },
+    {
+      x: randomObstacleX(platforms[2], pipePlatformIndex === 2 ? pipeBounds : null),
+      y: platforms[2].y - 60,
+      w: 60,
+      h: 60,
+      hp: 3
+    },
+    {
+      x: randomObstacleX(platforms[3], pipePlatformIndex === 3 ? pipeBounds : null),
+      y: platforms[3].y - 60,
+      w: 60,
+      h: 60,
+      hp: 3
+    }
   ];
 
   germs = [
-    { x: 150, y: 460, w: 40, h: 40, vx: 2, minX: 90, maxX: 250 },
-    { x: 450, y: 310, w: 40, h: 40, vx: 1.7, minX: 450, maxX: 560 },
-    { x: 700, y: 240, w: 40, h: 40, vx: 1.5, minX: 690, maxX: 820 }
+    {
+      x: randomBetween(90, 250),
+      y: 460,
+      w: 40,
+      h: 40,
+      vx: randomBetween(16, 24) / 10,
+      minX: 90,
+      maxX: 250
+    },
+    {
+      x: randomBetween(platforms[2].x, platforms[2].x + platforms[2].w - 40),
+      y: platforms[2].y - 40,
+      w: 40,
+      h: 40,
+      vx: randomBetween(15, 22) / 10,
+      minX: platforms[2].x,
+      maxX: platforms[2].x + platforms[2].w - 40
+    },
+    {
+      x: randomBetween(platforms[3].x, platforms[3].x + platforms[3].w - 40),
+      y: platforms[3].y - 40,
+      w: 40,
+      h: 40,
+      vx: randomBetween(14, 20) / 10,
+      minX: platforms[3].x,
+      maxX: platforms[3].x + platforms[3].w - 40
+    }
   ];
 
   pipe = {
-    x: 880,
-    y: 200,
+    x: pipeX,
+    y: pipePlatform.y - 80,
     w: 55,
     h: 80
   };
@@ -134,7 +251,18 @@ document.addEventListener("keydown", function(event) {
   }
 
   if ((key === "e" || key === "f") && !gameWon && !gameOver) {
-    attackObstacle();
+    if (skillCheckActive) {
+      // Attempt skill check
+      const elapsed = Date.now() - skillCheckStartTime;
+      const timeWindow = 500;
+      const targetTime = skillCheckDuration / 2;
+      const tolerance = timeWindow / 2;
+
+      const success = Math.abs(elapsed - targetTime) < tolerance;
+      completeSkillCheck(success);
+    } else {
+      attackObstacle();
+    }
   }
 
   if (key === "r") {
@@ -165,7 +293,7 @@ gameLoop();
 function update() {
   animateBackgroundWater();
 
-  if (gameWon || gameOver) {
+  if (gameWon || gameOver || skillCheckActive) {
     return;
   }
 
@@ -284,8 +412,7 @@ function isColliding(a, b) {
 
 function attackObstacle() {
   if (attackCooldown > 0) return;
-
-  attackCooldown = 20;
+  if (skillCheckActive) return;
 
   const attackBox = {
     x: player.facing === 1 ? player.x + player.w : player.x - 40,
@@ -294,20 +421,41 @@ function attackObstacle() {
     h: 35
   };
 
-  obstacles.forEach(function(obstacle) {
-    if (isColliding(attackBox, obstacle)) {
-      obstacle.hp--;
-
-      if (obstacle.hp <= 0) {
-        obstacle.broken = true;
-        score += 50;
-      }
+  for (let i = 0; i < obstacles.length; i++) {
+    if (isColliding(attackBox, obstacles[i])) {
+      // Initiate skill check for this obstacle
+      skillCheckActive = true;
+      skillCheckTargetObstacle = obstacles[i];
+      skillCheckStartTime = Date.now();
+      skillCheckSuccess = false;
+      attackCooldown = 20;
+      return;
     }
-  });
+  }
+}
+
+function completeSkillCheck(success) {
+  if (!skillCheckActive) return;
+
+  skillCheckActive = false;
+
+  if (success && skillCheckTargetObstacle) {
+    skillCheckTargetObstacle.hp--;
+
+    if (skillCheckTargetObstacle.hp <= 0) {
+      skillCheckTargetObstacle.broken = true;
+      score += 50;
+    }
+  } else if (!success) {
+    // Failed skill check: lose points
+    score = Math.max(0, score - 10);
+  }
 
   obstacles = obstacles.filter(function(obstacle) {
     return !obstacle.broken;
   });
+
+  skillCheckTargetObstacle = null;
 }
 
 // ==================================================
@@ -351,7 +499,7 @@ function damagePlayer() {
 // ==================================================
 
 function checkPipeGoal() {
-  if (isColliding(player, pipe)) {
+  if (isColliding(player, pipe) && obstacles.length === 0) {
     score += 200;
     gameWon = true;
   }
@@ -369,6 +517,10 @@ function draw() {
   drawGerms();
   drawPlayer();
   drawUI();
+
+  if (skillCheckActive) {
+    drawSkillCheck();
+  }
 
   if (gameWon) {
     drawCenterMessage("Clean Water Restored!", "Press R to restart");
@@ -582,45 +734,126 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 function drawUI() {
   const time = Math.floor((Date.now() - startTime) / 1000);
 
-  ctx.fillStyle = COLORS.white;
-  ctx.fillRect(14, 12, 425, 44);
-
   drawJerryCan(26, 20, 20, 28);
 
   ctx.fillStyle = COLORS.black;
   ctx.font = "22px Arial";
-  ctx.fillText("charity: water", 58, 41);
+  ctx.textAlign = "left";
+  const titleText = "charity: water";
+  const titleX = 58;
+  const titleY = 41;
+  ctx.fillText(titleText, titleX, titleY);
 
   ctx.font = "18px Arial";
-  ctx.fillText("Score: " + score, 205, 41);
-  ctx.fillText("Lives: " + lives, 310, 41);
-  ctx.fillText("Time: " + time, 375, 41);
+  const livesText = `Lives: ${lives}`;
+  const timeText = `Time: ${time}`;
+  const scoreText = `Score: ${score}`;
 
-  ctx.fillStyle = COLORS.navy;
+  const leftMargin = titleX;
+  const rightMargin = 20;
+  const availableWidth = WIDTH - leftMargin - rightMargin;
+  const segmentWidth = availableWidth / 3;
+
+  ctx.textAlign = "left";
+  ctx.fillText(livesText, leftMargin + segmentWidth, titleY);
+  ctx.fillText(timeText, leftMargin + segmentWidth * 2, titleY);
+
+  ctx.textAlign = "right";
+  ctx.fillText(scoreText, WIDTH - rightMargin, titleY);
+  ctx.textAlign = "left";
+}
+
+function drawSkillCheck() {
+  const elapsed = Date.now() - skillCheckStartTime;
+  const progress = Math.min(1, elapsed / skillCheckDuration);
+
+  const boxWidth = 400;
+  const boxHeight = 200;
+  const boxX = (WIDTH - boxWidth) / 2;
+  const boxY = (HEIGHT - boxHeight) / 2;
+
+  ctx.fillStyle = "rgba(28, 43, 64, 0.9)";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.fillStyle = COLORS.white;
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+  ctx.strokeStyle = COLORS.yellow;
+  ctx.lineWidth = 5;
+  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+  ctx.fillStyle = COLORS.black;
+  ctx.font = "24px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("SKILL CHECK!", WIDTH / 2, boxY + 40);
+
+  ctx.font = "18px Arial";
+  ctx.fillText("Press E or F at the right time!", WIDTH / 2, boxY + 70);
+
+  // Draw timing bar
+  const barWidth = 300;
+  const barHeight = 40;
+  const barX = (WIDTH - barWidth) / 2;
+  const barY = boxY + 100;
+
+  ctx.fillStyle = COLORS.deepTeal;
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+
+  ctx.strokeStyle = COLORS.yellow;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+  ctx.fillStyle = COLORS.cleanWater;
+  ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+
+  // Draw target zone
+  const targetZoneWidth = barWidth / 4;
+  const targetZoneX = barX + barWidth / 2 - targetZoneWidth / 2;
+  ctx.fillStyle = "rgba(255, 201, 8, 0.3)";
+  ctx.fillRect(targetZoneX, barY, targetZoneWidth, barHeight);
+
+  ctx.fillStyle = COLORS.black;
   ctx.font = "16px Arial";
-  ctx.fillText("Break barriers. Avoid contamination. Restore clean water.", 505, 41);
+  ctx.fillText("Time remaining: " + Math.ceil((skillCheckDuration - elapsed) / 1000) + "s", WIDTH / 2, boxY + 170);
+
+  ctx.textAlign = "left";
+
+  // Auto-fail if time runs out
+  if (elapsed > skillCheckDuration) {
+    completeSkillCheck(false);
+  }
 }
 
 function drawCenterMessage(title, subtitle) {
+  const boxWidth = 520;
+  const boxHeight = 210;
+  const boxX = (WIDTH - boxWidth) / 2;
+  const boxY = (HEIGHT - boxHeight) / 2;
+
   ctx.fillStyle = "rgba(28, 43, 64, 0.88)";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   ctx.fillStyle = COLORS.white;
-  ctx.fillRect(280, 175, 400, 170);
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
   ctx.strokeStyle = COLORS.yellow;
   ctx.lineWidth = 5;
-  ctx.strokeRect(280, 175, 400, 170);
+  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
-  drawJerryCan(315, 212, 42, 62);
+  drawJerryCan(boxX + 40, boxY + 40, 42, 62);
+
+  const textX = boxX + boxWidth * 0.65;
+  const titleY = boxY + 70;
+  const subtitleY = boxY + 120;
 
   ctx.fillStyle = COLORS.black;
-  ctx.font = "36px Arial";
   ctx.textAlign = "center";
-  ctx.fillText(title, WIDTH / 2 + 40, HEIGHT / 2 - 18);
 
-  ctx.font = "22px Arial";
-  ctx.fillText(subtitle, WIDTH / 2 + 40, HEIGHT / 2 + 28);
+  ctx.font = "30px Arial";
+  ctx.fillText(title, textX, titleY);
+
+  ctx.font = "20px Arial";
+  ctx.fillText(subtitle, textX, subtitleY);
 
   ctx.textAlign = "left";
 }
