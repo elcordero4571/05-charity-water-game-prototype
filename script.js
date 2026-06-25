@@ -48,6 +48,8 @@ let skillCheckTargetObstacle = null;
 let skillCheckStartTime = 0;
 let skillCheckDuration = 2000;
 let skillCheckSuccess = false;
+let skillCheckTargetTime = 0;
+let skillCheckTolerance = 0;
 
 let particles = [];
 let particlesCreated = false;
@@ -98,6 +100,8 @@ function loadLevel() {
   startTime = Date.now();
   skillCheckActive = false;
   skillCheckTargetObstacle = null;
+  skillCheckTargetTime = 0;
+  skillCheckTolerance = 0;
   particles = [];
   particlesCreated = false;
 
@@ -176,21 +180,21 @@ function loadLevel() {
       y: platforms[1].y - 60,
       w: 60,
       h: 60,
-      hp: 2
+      hp: randomBetween(2, 4)
     },
     {
       x: randomObstacleX(platforms[2], null),
       y: platforms[2].y - 60,
       w: 60,
       h: 60,
-      hp: 3
+      hp: randomBetween(2, 4)
     },
     {
       x: randomObstacleX(platforms[3], null),
       y: platforms[3].y - 60,
       w: 60,
       h: 60,
-      hp: 3
+      hp: randomBetween(2, 4)
     }
   ];
 
@@ -258,11 +262,7 @@ document.addEventListener("keydown", function(event) {
     if (skillCheckActive) {
       // Attempt skill check
       const elapsed = Date.now() - skillCheckStartTime;
-      const timeWindow = 500;
-      const targetTime = skillCheckDuration / 2;
-      const tolerance = timeWindow / 2;
-
-      const success = Math.abs(elapsed - targetTime) < tolerance;
+      const success = Math.abs(elapsed - skillCheckTargetTime) < skillCheckTolerance;
       completeSkillCheck(success);
     } else {
       attackObstacle();
@@ -479,6 +479,11 @@ function attackObstacle() {
       skillCheckActive = true;
       skillCheckTargetObstacle = obstacles[i];
       skillCheckStartTime = Date.now();
+      
+      // Randomize difficulty
+      skillCheckDuration = randomBetween(1500, 2500);  // 1.5s to 2.5s
+      skillCheckTolerance = randomBetween(150, 350);   // 150ms to 350ms window
+      skillCheckTargetTime = randomBetween(400, skillCheckDuration - 400);
       skillCheckSuccess = false;
       attackCooldown = 20;
       return;
@@ -860,8 +865,9 @@ function drawSkillCheck() {
   ctx.fillRect(barX, barY, barWidth * progress, barHeight);
 
   // Draw target zone
-  const targetZoneWidth = barWidth / 4;
-  const targetZoneX = barX + barWidth / 2 - targetZoneWidth / 2;
+  const targetZoneWidth = (skillCheckTolerance / skillCheckDuration) * barWidth;
+  const targetZoneProgress = skillCheckTargetTime / skillCheckDuration;
+  const targetZoneX = barX + (barWidth * targetZoneProgress) - targetZoneWidth / 2;
   ctx.fillStyle = "rgba(255, 201, 8, 0.3)";
   ctx.fillRect(targetZoneX, barY, targetZoneWidth, barHeight);
 
